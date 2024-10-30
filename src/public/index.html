@@ -1,0 +1,322 @@
+<!-- src/public/index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Mensagens - Template Matcher</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .suggestion-card {
+            transition: transform 0.2s ease;
+        }
+        .suggestion-card:hover {
+            transform: translateY(-2px);
+            cursor: pointer;
+        }
+        .confidence-high { background-color: #d4edda; }
+        .confidence-medium { background-color: #fff3cd; }
+        .confidence-low { background-color: #f8d7da; }
+        .loading-spinner {
+            display: none;
+        }
+        .category-badge {
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Template Matcher</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">Analisador</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/manager">Gerenciador</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container my-4">
+        <div class="row">
+            <!-- Input Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-comment-alt me-2"></i>
+                            Mensagem do Cliente
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="analysisForm" onsubmit="analyzeMessage(event)">
+                            <div class="mb-3">
+                                <textarea 
+                                    class="form-control" 
+                                    id="messageInput" 
+                                    rows="6"
+                                    placeholder="Digite aqui a mensagem do cliente..."
+                                    required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>
+                                Analisar Mensagem
+                                <div class="spinner-border spinner-border-sm loading-spinner" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                                <i class="fas fa-eraser me-2"></i>
+                                Limpar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>
+                            Resultados da Análise
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Categories Analysis -->
+                        <div id="categoriesSection" style="display: none;">
+                            <h6 class="card-subtitle mb-2 text-muted">
+                                <i class="fas fa-tags me-2"></i>
+                                Categorias Identificadas
+                            </h6>
+                            <div id="categoriesList" class="mb-4">
+                                <!-- Categories will be inserted here -->
+                            </div>
+                        </div>
+
+                        <!-- Templates Suggestions -->
+                        <div id="suggestionsSection" style="display: none;">
+                            <h6 class="card-subtitle mb-2 text-muted">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                Templates Sugeridos
+                            </h6>
+                            <div id="suggestionsList">
+                                <!-- Suggestions will be inserted here -->
+                            </div>
+                        </div>
+
+                        <!-- Initial State Message -->
+                        <div id="initialMessage" class="text-center text-muted py-4">
+                            <i class="fas fa-search fa-3x mb-3"></i>
+                            <p>Digite uma mensagem e clique em "Analisar" para receber sugestões de templates.</p>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div id="loadingMessage" class="text-center py-4" style="display: none;">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="text-muted">Analisando mensagem...</p>
+                        </div>
+
+                        <!-- No Results Message -->
+                        <div id="noResultsMessage" class="text-center text-muted py-4" style="display: none;">
+                            <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+                            <p>Nenhum template sugerido encontrado para esta mensagem.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container for notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Estado global da aplicação
+        let currentAnalysis = null;
+
+        // Função para analisar a mensagem
+        async function analyzeMessage(event) {
+            event.preventDefault();
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            setLoadingState(true);
+            
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao analisar mensagem');
+                }
+
+                currentAnalysis = data;
+                displayResults(data);
+                
+            } catch (error) {
+                showToast('Erro', error.message, 'danger');
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        // Função para exibir os resultados
+        function displayResults(data) {
+            const { analysis } = data;
+            
+            // Mostrar seção de categorias
+            displayCategories(analysis.categories, analysis.confidence);
+            
+            // Mostrar seção de sugestões
+            displaySuggestions(analysis.suggestedTemplates);
+            
+            // Atualizar visibilidade das seções
+            document.getElementById('initialMessage').style.display = 'none';
+            document.getElementById('categoriesSection').style.display = 'block';
+            document.getElementById('suggestionsSection').style.display = 'block';
+            
+            if (analysis.suggestedTemplates.length === 0) {
+                document.getElementById('noResultsMessage').style.display = 'block';
+                document.getElementById('suggestionsList').style.display = 'none';
+            } else {
+                document.getElementById('noResultsMessage').style.display = 'none';
+                document.getElementById('suggestionsList').style.display = 'block';
+            }
+        }
+
+        // Função para exibir categorias
+        function displayCategories(categories, confidence) {
+            const categoriesList = document.getElementById('categoriesList');
+            const sortedCategories = Object.entries(categories)
+                .sort(([,a], [,b]) => b - a);
+            
+            const html = sortedCategories.map(([category, score]) => {
+                const percentage = (score * 100).toFixed(1);
+                const confidenceClass = score > 0.7 ? 'bg-success' : 
+                                    score > 0.4 ? 'bg-warning' : 'bg-danger';
+                
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="category-name">${category}</span>
+                        <span class="badge ${confidenceClass} category-badge">
+                            ${percentage}%
+                        </span>
+                    </div>
+                `;
+            }).join('');
+            
+            categoriesList.innerHTML = html;
+        }
+
+        // Função para exibir sugestões
+        function displaySuggestions(templates) {
+            const suggestionsList = document.getElementById('suggestionsList');
+            
+            const html = templates.map((template, index) => `
+                <div class="card mb-3 suggestion-card" onclick="copyTemplate(${index})">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <p class="card-text mb-0">${template}</p>
+                            <button class="btn btn-sm btn-outline-primary ms-2" 
+                                    onclick="event.stopPropagation(); copyTemplate(${index})">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            suggestionsList.innerHTML = html;
+        }
+
+        // Função para copiar template
+        async function copyTemplate(index) {
+            const template = currentAnalysis.analysis.suggestedTemplates[index];
+            try {
+                await navigator.clipboard.writeText(template);
+                showToast('Sucesso', 'Template copiado para a área de transferência!', 'success');
+            } catch (err) {
+                showToast('Erro', 'Não foi possível copiar o template', 'danger');
+            }
+        }
+
+        // Função para limpar o formulário
+        function clearForm() {
+            document.getElementById('messageInput').value = '';
+            document.getElementById('initialMessage').style.display = 'block';
+            document.getElementById('categoriesSection').style.display = 'none';
+            document.getElementById('suggestionsSection').style.display = 'none';
+            document.getElementById('noResultsMessage').style.display = 'none';
+            currentAnalysis = null;
+        }
+
+        // Função para controlar estado de carregamento
+        function setLoadingState(loading) {
+            const submitButton = document.querySelector('button[type="submit"]');
+            const loadingSpinner = submitButton.querySelector('.loading-spinner');
+            const initialMessage = document.getElementById('initialMessage');
+            const loadingMessage = document.getElementById('loadingMessage');
+            
+            submitButton.disabled = loading;
+            loadingSpinner.style.display = loading ? 'inline-block' : 'none';
+            
+            if (loading) {
+                initialMessage.style.display = 'none';
+                loadingMessage.style.display = 'block';
+            } else {
+                loadingMessage.style.display = 'none';
+            }
+        }
+
+        // Função para exibir toasts
+        function showToast(title, message, type = 'info') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toastHtml = `
+                <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <strong>${title}</strong><br>
+                            ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toast = toastContainer.lastElementChild;
+            const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 3000 });
+            
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+            
+            bsToast.show();
+        }
+    </script>
+</body>
+</html>
