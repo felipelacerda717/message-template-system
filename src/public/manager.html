@@ -100,19 +100,22 @@
                                         <label class="form-label">Nome</label>
                                         <input type="text" class="form-control" name="name" required>
                                     </div>
+                                    
                                     <div class="mb-3">
                                         <label class="form-label">Palavras-chave</label>
-                                        <textarea class="form-control" name="keywords" rows="3" 
+                                        <textarea class="form-control" name="keywords" id="keywords" rows="3" 
                                             placeholder="Separadas por vírgula" required></textarea>
                                     </div>
+                                    
                                     <div class="mb-3">
                                         <label class="form-label">Peso</label>
-                                        <input type="number" class="form-control" name="weight" 
+                                        <input type="number" class="form-control" name="weight" id="weight"
                                             min="0.5" max="5" step="0.5" value="1" required>
                                         <div class="form-text">
                                             Valor entre 0.5 e 5, usado para ajustar a importância da categoria
                                         </div>
                                     </div>
+                                    
                                     <button type="submit" class="btn btn-primary">
                                         <i class="fas fa-save me-2"></i>
                                         Salvar Categoria
@@ -455,34 +458,88 @@ function displayCategories(categories) {
     categoriesList.innerHTML = html;
 }
 
+function logFormData(form) {
+        const formData = new FormData(form);
+        console.log('Form fields:');
+        for (let field of form.elements) {
+            if (field.name) {
+                console.log(`${field.name}: ${field.value}`);
+            }
+        }
+        console.log('FormData entries:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}: ${value}`);
+        }
+    }
+
+    // Exibir notificações toast
+    function showToast(title, message, type = 'info') {
+        // ... resto do código existente ...
+    }
+
 // Criar nova categoria
 async function handleCategorySubmit(event) {
     event.preventDefault();
     setFormLoading('categoryForm', true);
 
-    const formData = new FormData(event.target);
-    const categoryData = {
-        name: formData.get('name').trim(),
-        keywords: formData.get('keywords')
+    try {
+        const form = event.target;
+        console.log('Form submission debug:');
+        logFormData(form);
+        // Pegar os valores diretamente dos elementos
+        const name = form.querySelector('[name="name"]').value;
+        const keywords = form.querySelector('[name="keywords"]').value;
+        const weight = form.querySelector('[name="weight"]').value;
+
+        // Validações
+        if (!name || !keywords || !weight) {
+            throw new Error('Todos os campos são obrigatórios');
+        }
+
+        // Processar as keywords
+        const processedKeywords = keywords
             .split(',')
             .map(k => k.trim())
-            .filter(k => k.length > 0),
-        weight: Number(formData.get('weight'))
-    };
+            .filter(k => k.length > 0);
 
-    try {
+        if (processedKeywords.length === 0) {
+            throw new Error('É necessário fornecer ao menos uma palavra-chave válida');
+        }
+
+        const weightNum = parseFloat(weight);
+        if (isNaN(weightNum) || weightNum < 0.5 || weightNum > 5) {
+            throw new Error('O peso deve ser um número entre 0.5 e 5');
+        }
+
+        const categoryData = {
+            name: name.trim(),
+            keywords: processedKeywords,
+            weight: weightNum
+        };
+
+        console.log('Sending category data:', categoryData);
+
         const response = await fetch('/api/categories', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(categoryData)
         });
 
-        await handleRequestError(response);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || errorData.details || 'Erro ao criar categoria');
+        }
+
+        const result = await response.json();
+        console.log('Response:', result);
         
         showToast('Sucesso', 'Categoria criada com sucesso!', 'success');
-        resetForm('categoryForm');
+        form.reset();
         refreshCategories();
     } catch (error) {
+        console.error('Error:', error);
         showToast('Erro', error.message, 'danger');
     } finally {
         setFormLoading('categoryForm', false);

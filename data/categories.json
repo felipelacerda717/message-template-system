@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "name": "teste",
+    "keywords": [
+      "teste1"
+    ],
+    "weight": 1,
+    "id": "d8312989-b1c1-429d-93db-9cf77fb27f14",
+    "createdAt": "2024-10-31T15:07:42.358Z",
+    "updatedAt": "2024-10-31T15:07:42.358Z"
+  }
+]

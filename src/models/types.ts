@@ -1,6 +1,6 @@
 // src/models/types.ts
 
-// Interface para Categoria
+// Base interfaces for Category and Template
 export interface Category {
     id: string;
     name: string;
@@ -10,7 +10,6 @@ export interface Category {
     updatedAt: Date;
 }
 
-// Interface para Template
 export interface Template {
     id: string;
     categoryId: string;
@@ -19,36 +18,26 @@ export interface Template {
     updatedAt: Date;
 }
 
-// Interface para Resultado de Análise
-export interface AnalysisResult {
-    categories: {
-        [key: string]: number;  // Nome da categoria -> pontuação
-    };
-    dominantCategory: string;   // Categoria com maior pontuação
-    suggestedTemplates: string[]; // Templates sugeridos baseados na análise
-    confidence: number;         // Nível de confiança da análise
-}
-
-// Interface para dados de criação de categoria
+// DTOs for creating new items
 export interface CreateCategoryDTO {
     name: string;
     keywords: string[];
     weight: number;
 }
 
-// Interface para dados de criação de template
 export interface CreateTemplateDTO {
     categoryId: string;
     text: string;
 }
 
-// Interface para dados de atualização de categoria
-export interface UpdateCategoryDTO extends Partial<CreateCategoryDTO> {}
+// DTOs for updating existing items
+export interface UpdateCategoryDTO {
+    name?: string;
+    keywords?: string[];
+    weight?: number;
+}
 
-// Interface para dados de atualização de template
-export interface UpdateTemplateDTO extends Partial<CreateTemplateDTO> {}
-
-// Interface para mensagem a ser analisada
-export interface AnalyzeMessageDTO {
-    message: string;
+export interface UpdateTemplateDTO {
+    categoryId?: string;
+    text?: string;
 }

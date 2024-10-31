@@ -1,15 +1,14 @@
-// src/routes/categoryRoutes.ts
-
 import express from 'express';
-import categoryController from '../controllers/categoryController';
+import CategoryController from '../controllers/categoryController';
 
 const router = express.Router();
+const categoryController = new CategoryController();
 
 // Rotas básicas CRUD
-router.get('/', categoryController.getAllCategories);
-router.get('/:id', categoryController.getCategory);
-router.post('/', categoryController.createCategory);
-router.put('/:id', categoryController.updateCategory);
-router.delete('/:id', categoryController.deleteCategory);
+router.get('/', categoryController.getAllCategories.bind(categoryController));
+router.get('/:id', categoryController.getCategory.bind(categoryController));
+router.post('/', categoryController.createCategory.bind(categoryController));
+router.put('/:id', categoryController.updateCategory.bind(categoryController));
+router.delete('/:id', categoryController.deleteCategory.bind(categoryController));
 
 export default router;

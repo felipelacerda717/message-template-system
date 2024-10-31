@@ -1,5 +1,3 @@
-// src/routes/templateRoutes.ts
-
 import express from 'express';
 import templateController from '../controllers/templateController';
 

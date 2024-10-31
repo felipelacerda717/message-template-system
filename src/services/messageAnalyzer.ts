@@ -1,183 +1,70 @@
-// src/services/storageService.ts
+import storageService from './storageService';
+import { Category, Template } from '../models/types';
 
-import { Category, Template, CreateCategoryDTO, CreateTemplateDTO, UpdateCategoryDTO, UpdateTemplateDTO } from '../models/types';
-import fs from 'fs';
-import path from 'path';
-
-class StorageService {
-    private static instance: StorageService;
-    private categories: Category[] = [];
-    private templates: Template[] = [];
-    private readonly dataDir = path.join(__dirname, '../../data');
-    private readonly categoriesFile = path.join(this.dataDir, 'categories.json');
-    private readonly templatesFile = path.join(this.dataDir, 'templates.json');
-
-    private constructor() {
-        this.initializeStorage();
-    }
-
-    public static getInstance(): StorageService {
-        if (!StorageService.instance) {
-            StorageService.instance = new StorageService();
-        }
-        return StorageService.instance;
-    }
-
-    private initializeStorage() {
-        if (!fs.existsSync(this.dataDir)) {
-            fs.mkdirSync(this.dataDir, { recursive: true });
-        }
-
-        try {
-            if (fs.existsSync(this.categoriesFile)) {
-                const data = fs.readFileSync(this.categoriesFile, 'utf8');
-                this.categories = JSON.parse(data);
-            }
-
-            if (fs.existsSync(this.templatesFile)) {
-                const data = fs.readFileSync(this.templatesFile, 'utf8');
-                this.templates = JSON.parse(data);
-            }
-        } catch (error) {
-            console.error('Erro ao carregar dados:', error);
-            // Inicializar com arrays vazios em caso de erro
-            this.categories = [];
-            this.templates = [];
-        }
-    }
-
-    private saveCategories(): void {
-        fs.writeFileSync(this.categoriesFile, JSON.stringify(this.categories, null, 2));
-    }
-
-    private saveTemplates(): void {
-        fs.writeFileSync(this.templatesFile, JSON.stringify(this.templates, null, 2));
-    }
-
-    // Métodos para Categorias
-    async getCategories(): Promise<Category[]> {
-        return this.categories;
-    }
-
-    async getCategory(id: string): Promise<Category | null> {
-        return this.categories.find(c => c.id === id) || null;
-    }
-
-    async createCategory(data: CreateCategoryDTO): Promise<Category> {
-        const newCategory: Category = {
-            ...data,
-            id: crypto.randomUUID(),
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
-
-        this.categories.push(newCategory);
-        this.saveCategories();
-        return newCategory;
-    }
-
-    async updateCategory(id: string, data: UpdateCategoryDTO): Promise<Category | null> {
-        const index = this.categories.findIndex(c => c.id === id);
-        if (index === -1) return null;
-
-        const updatedCategory = {
-            ...this.categories[index],
-            ...data,
-            updatedAt: new Date()
-        };
-
-        this.categories[index] = updatedCategory;
-        this.saveCategories();
-        return updatedCategory;
-    }
-
-    async deleteCategory(id: string): Promise<boolean> {
-        const initialLength = this.categories.length;
-        this.categories = this.categories.filter(c => c.id !== id);
-        
-        if (this.categories.length < initialLength) {
-            // Excluir templates associados à categoria
-            this.templates = this.templates.filter(t => t.categoryId !== id);
-            this.saveCategories();
-            this.saveTemplates();
-            return true;
-        }
-        return false;
-    }
-
-    // Métodos para Templates
-    async getTemplates(): Promise<Template[]> {
-        return this.templates;
-    }
-
-    async getTemplate(id: string): Promise<Template | null> {
-        return this.templates.find(t => t.id === id) || null;
-    }
-
-    async getTemplatesByCategory(categoryId: string): Promise<Template[]> {
-        return this.templates.filter(t => t.categoryId === categoryId);
-    }
-
-    async createTemplate(data: CreateTemplateDTO): Promise<Template> {
-        // Verificar se a categoria existe
-        const categoryExists = this.categories.some(c => c.id === data.categoryId);
-        if (!categoryExists) {
-            throw new Error('Categoria não encontrada');
-        }
-
-        const newTemplate: Template = {
-            ...data,
-            id: crypto.randomUUID(),
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
-
-        this.templates.push(newTemplate);
-        this.saveTemplates();
-        return newTemplate;
-    }
-
-    async updateTemplate(id: string, data: UpdateTemplateDTO): Promise<Template | null> {
-        const index = this.templates.findIndex(t => t.id === id);
-        if (index === -1) return null;
-
-        // Se estiver atualizando a categoria, verificar se a nova categoria existe
-        if (data.categoryId) {
-            const categoryExists = this.categories.some(c => c.id === data.categoryId);
-            if (!categoryExists) {
-                throw new Error('Categoria não encontrada');
-            }
-        }
-
-        const updatedTemplate = {
-            ...this.templates[index],
-            ...data,
-            updatedAt: new Date()
-        };
-
-        this.templates[index] = updatedTemplate;
-        this.saveTemplates();
-        return updatedTemplate;
-    }
-
-    async deleteTemplate(id: string): Promise<boolean> {
-        const initialLength = this.templates.length;
-        this.templates = this.templates.filter(t => t.id !== id);
-        
-        if (this.templates.length < initialLength) {
-            this.saveTemplates();
-            return true;
-        }
-        return false;
-    }
-
-    // Método para resetar o armazenamento (útil para testes)
-    async resetStorage(): Promise<void> {
-        this.categories = [];
-        this.templates = [];
-        this.saveCategories();
-        this.saveTemplates();
-    }
+export interface AnalysisResult {
+    categories: {
+        [key: string]: number;
+    };
+    dominantCategory: string; 
+    suggestedTemplates: string[];
+    confidence: number;
 }
 
-export default StorageService.getInstance();
+export class MessageAnalyzer {
+    private normalizeText(text: string): string {
+        return text.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\w\s]/g, ' ');
+    }
+
+    private calculateCategoryScore(text: string, category: Category): number {
+        let score = 0;
+        const normalizedText = this.normalizeText(text);
+        
+        category.keywords.forEach((keyword: string) => {
+            if (normalizedText.includes(this.normalizeText(keyword))) {
+                score += category.weight;
+            }
+        });
+    
+        return score;
+    }
+
+    public async analyzeMessage(message: string): Promise<AnalysisResult> {
+        const categories = await storageService.getCategories();
+        const templates = await storageService.getTemplates();
+        const scores: { [key: string]: number } = {};
+        let totalScore = 0;
+
+        // Calculate scores
+        for (const category of categories) {
+            const score = this.calculateCategoryScore(message, category);
+            scores[category.name] = score;
+            totalScore += score;
+        }
+
+        // Find dominant category
+        const sortedCategories = Object.entries(scores)
+            .sort(([,a], [,b]) => b - a);
+        
+        const dominantCategory = sortedCategories.length > 0 && sortedCategories[0][1] > 0 
+            ? sortedCategories[0][0]
+            : categories[0]?.name || 'default';
+
+        // Get suggested templates
+        const categoryObj = categories.find(c => c.name === dominantCategory);
+        const suggestedTemplates = templates
+            .filter(t => t.categoryId === categoryObj?.id)
+            .map(t => t.text);
+
+        const confidence = totalScore > 0 ? scores[dominantCategory] / totalScore : 0;
+
+        return {
+            categories: scores,
+            dominantCategory,
+            suggestedTemplates: suggestedTemplates.length > 0 ? suggestedTemplates : [],
+            confidence
+        };
+    }
+}
